@@ -24,7 +24,7 @@ export default function AuthModal({ isOpen, onClose, type }) {
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Ad Soyad</label>
                 <div className="relative">
-                  <input type="text" placeholder="Burçin Koç" className="w-full bg-[#0a0f1d] border border-white/5 p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-sm pl-11" />
+                  <input type="text" placeholder="Ad Soyad" className="w-full bg-[#0a0f1d] border border-white/5 p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-sm pl-11" />
                   <UserIcon className="absolute left-4 top-3 text-slate-600" size={18} />
                 </div>
               </div>

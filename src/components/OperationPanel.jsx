@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { Send, Navigation, AlertTriangle, Layers, Activity, Search, MapPin } from 'lucide-react';
+import { Send, AlertTriangle, Layers, Activity, Search, MapPin, CheckCircle2 } from 'lucide-react';
 
 export default function OperationPanel({ currentUser, selectedLocation, onIhbarSubmit, onLocationSelect }) {
   const [desc, setDesc] = useState('');
   const [address, setAddress] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  
-  // Karargah Standart Kategorileri: Tam Liste
+  const [selectedCat, setSelectedCat] = useState(1);
+  const [opMode, setOpMode] = useState('Vatandaş');
+  // ✅ Çözümlenen kısa adres — beneficiary_note'a yazılacak
+  const [resolvedAddress, setResolvedAddress] = useState('');
+
   const staticCategories = [
     { id: 1, name: 'Gıda' },
     { id: 2, name: 'İlaç & Tıbbi Malzeme' },
@@ -16,170 +19,218 @@ export default function OperationPanel({ currentUser, selectedLocation, onIhbarS
     { id: 6, name: 'Gönüllü' }
   ];
 
-  const [selectedCat, setSelectedCat] = useState(1);
-  const [opMode, setOpMode] = useState('Vatandaş');
-
-  // Adres Arama Fonksiyonu (OSM Nominatim)
   const handleAddressSearch = async (e) => {
     e.preventDefault();
     if (!address) return;
     setIsSearching(true);
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`);
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&countrycodes=tr`
+      );
       const data = await response.json();
       if (data && data.length > 0) {
         onLocationSelect(parseFloat(data[0].lat), parseFloat(data[0].lon));
+        // ✅ display_name'den ilk 3 parçayı al — "Kadıköy, İstanbul, Türkiye" gibi
+        const parts = data[0].display_name.split(',');
+        const short = parts.slice(0, 3).map(p => p.trim()).join(', ');
+        setResolvedAddress(short);
       } else {
-        alert("Karargah Kaydı Bulunamadı: Adresi kontrol edin.");
+        alert('Adres bulunamadı. Lütfen tekrar deneyin.');
       }
     } catch (error) {
-      console.error("GPS Arama Hatası:", error);
+      console.error('GPS Arama Hatası:', error);
     } finally {
       setIsSearching(false);
     }
   };
 
-  // Sinyal Gönderim Fonksiyonu (Senkronize ve Güvenli Protokol)
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedLocation) return alert("Hata: Koordinat kilitlenmedi! Haritadan seçin veya adres arayın.");
-    
-    // BACKEND İLE TAM UYUMLU PAYLOAD
+    if (!selectedLocation) return alert('Haritadan konum seçin veya adres arayın.');
     const payload = {
       category_id: parseInt(selectedCat),
       description: desc,
       latitude: selectedLocation.lat,
       longitude: selectedLocation.lng,
       urgency_level: opMode === 'Akıncı' ? 'Kritik' : 'Normal',
-      status: 'Beklemede', // Admin onayı gerektiren statü
+      status: 'Beklemede',
       is_for_self: true,
-      beneficiary_note: '' // <-- SQL hatasını çözen eksik alan
+      // ✅ Çözümlenen adres varsa onu, yoksa kullanıcının yazdığı adresi kullan
+      beneficiary_note: resolvedAddress || address || ''
     };
-
-    // App.jsx'teki fonksiyonun sunucu ile anlaşıp sonuç dönmesini bekle
     const isSuccess = await onIhbarSubmit(payload);
-    
-    // İşlem SADECE başarılıysa formu ve adres satırını temizle
     if (isSuccess) {
       setDesc('');
       setAddress('');
+      setResolvedAddress('');
     }
   };
 
+  const inputClass = "w-full bg-white border border-[#ddd8d0] p-3.5 rounded-xl outline-none text-xs font-semibold text-slate-700 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition placeholder:text-slate-400 shadow-sm";
+  const labelClass = "text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest";
+
   return (
-    <div className="bg-[#0d1425] border border-blue-500/20 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
-      
-      {/* Üst Panel: Durum Göstergeleri */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8 border-b border-white/5 pb-6">
+    <div className="bg-white border border-[#ddd8d0] rounded-3xl p-7 shadow-md relative overflow-hidden animate-in zoom-in-95 duration-300">
+
+      <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-blue-50 to-transparent rounded-3xl pointer-events-none" />
+
+      {/* Üst Header */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-7 pb-6 border-b border-[#ece8e2]">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-blue-600/10 rounded-2xl text-blue-500 border border-blue-500/20 shadow-inner">
-            <Layers size={24} />
+          <div className="p-3 bg-blue-100 rounded-2xl text-blue-500 border border-blue-200 shadow-sm">
+            <Layers size={22} />
           </div>
           <div>
-            <h3 className="text-xl font-black uppercase tracking-tighter text-blue-50">Sinyal Operasyon Merkezi</h3>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1 flex items-center gap-2">
-              <Activity size={10} className="text-blue-500 animate-pulse" /> 
+            <h3 className="text-lg font-black tracking-tight text-slate-800">Sinyal Operasyon Merkezi</h3>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 flex items-center gap-1.5">
+              <Activity size={9} className="text-blue-400 animate-pulse" />
               Statü: {opMode === 'Akıncı' ? 'Saha Personeli' : 'Vatandaş Erişimi'}
             </p>
           </div>
         </div>
 
-        <div className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl border text-[10px] font-black tracking-widest transition-all duration-500 ${selectedLocation ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
-          <MapPin size={14} className={selectedLocation ? 'animate-bounce' : ''} />
-          {selectedLocation ? `GPS KİLİTLENDİ: ${selectedLocation.lat.toFixed(3)}` : 'KONUM BEKLENİYOR'}
+        {/* GPS Durum */}
+        <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-2xl border text-[10px] font-black tracking-wide transition-all duration-500 ${
+          selectedLocation
+            ? 'bg-green-50 border-green-200 text-green-600'
+            : 'bg-amber-50 border-amber-200 text-amber-600'
+        }`}>
+          {selectedLocation
+            ? <CheckCircle2 size={13} className="shrink-0" />
+            : <MapPin size={13} className="shrink-0 animate-bounce" />
+          }
+          {selectedLocation
+            ? `📍 GPS Kilitlendi: ${selectedLocation.lat.toFixed(3)}, ${selectedLocation.lng.toFixed(3)}`
+            : 'Haritadan konum seçin'
+          }
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-8">
-        {/* BÖLÜM 1: Adres Arama */}
-        <div className="space-y-3">
-          <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">Yazılı Adres Girişi</label>
+      <div className="space-y-6 relative">
+
+        {/* Adres Arama */}
+        <div className="space-y-2">
+          <label className={labelClass}>Yazılı Adres Girişi</label>
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <input 
-                type="text" 
-                placeholder="Şehir, sokak veya bina adı giriniz..."
+              <input
+                type="text"
+                placeholder="Şehir, ilçe, sokak veya bina adı..."
                 value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-full bg-[#0a0f1d] border border-white/10 p-4 rounded-2xl outline-none text-xs font-bold text-white focus:border-blue-500 transition-all pl-12 shadow-inner"
+                onChange={(e) => {
+                  setAddress(e.target.value);
+                  // ✅ Adres değişince çözümlenen adresi sıfırla
+                  if (resolvedAddress) setResolvedAddress('');
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddressSearch(e)}
+                className={`${inputClass} pl-10`}
               />
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
             </div>
-            <button 
+            <button
               type="button"
               onClick={handleAddressSearch}
-              className="bg-[#1a2235] hover:bg-slate-700 px-8 rounded-2xl text-[10px] font-black uppercase text-white transition-all border border-white/5 shadow-xl"
+              disabled={isSearching || !address}
+              className="bg-slate-100 hover:bg-slate-200 disabled:opacity-50 px-6 rounded-xl text-[10px] font-black uppercase text-slate-600 hover:text-slate-800 transition-all border border-[#ddd8d0] shadow-sm whitespace-nowrap"
             >
-              {isSearching ? '...' : 'Konum Bul'}
+              {isSearching ? (
+                <span className="flex items-center gap-1.5">
+                  <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  Aranıyor
+                </span>
+              ) : 'Konum Bul'}
             </button>
           </div>
+
+          {/* ✅ Çözümlenen adres göster */}
+          {resolvedAddress ? (
+            <p className="text-[10px] text-green-600 font-bold ml-1 flex items-center gap-1">
+              <CheckCircle2 size={11} /> {resolvedAddress}
+            </p>
+          ) : (
+            <p className="text-[9px] text-slate-400 font-semibold ml-1">
+              veya haritaya tıklayarak konum seçin
+            </p>
+          )}
         </div>
 
-        {/* BÖLÜM 2: Sinyal Formu */}
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-end">
-          
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
+
+          {/* Yardım Türü */}
           <div className="lg:col-span-3 space-y-2">
-            <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">Yardım Türü</label>
-            <select 
+            <label className={labelClass}>Yardım Türü</label>
+            <select
               value={selectedCat}
               onChange={(e) => setSelectedCat(e.target.value)}
-              className="w-full bg-[#0a0f1d] border border-white/10 p-4 rounded-2xl outline-none text-xs font-bold text-white focus:border-blue-500 shadow-inner appearance-none cursor-pointer"
+              className={`${inputClass} cursor-pointer appearance-none`}
+              style={{backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center'}}
             >
               {staticCategories.map(cat => (
-                <option key={cat.id} value={cat.id} className="bg-[#0d1425]">{cat.name}</option>
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
             </select>
           </div>
 
+          {/* Operasyon Modu */}
           <div className="lg:col-span-2 space-y-2">
-            <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">Operasyon Modu</label>
-            <select 
+            <label className={labelClass}>Mod</label>
+            <select
               value={opMode}
               onChange={(e) => setOpMode(e.target.value)}
-              className={`w-full bg-[#0a0f1d] border border-white/10 p-4 rounded-2xl outline-none text-xs font-bold appearance-none cursor-pointer transition-colors ${
-                opMode === 'Akıncı' ? 'text-blue-400' : 'text-green-400'
+              className={`${inputClass} cursor-pointer appearance-none font-bold ${
+                opMode === 'Akıncı' ? '!text-blue-600' : '!text-green-600'
               }`}
+              style={{backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center'}}
             >
               <option value="Vatandaş">Vatandaş</option>
               <option value="Akıncı">Akıncı</option>
             </select>
           </div>
 
+          {/* İhtiyaç Notu */}
           <div className="lg:col-span-5 space-y-2">
-            <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">İhtiyaç Notu</label>
-            <input 
-              type="text" 
+            <label className={labelClass}>İhtiyaç Notu</label>
+            <input
+              type="text"
               placeholder="Adminin görmesi için kısa bir not ekleyin..."
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
-              className="w-full bg-[#0a0f1d] border border-white/10 p-4 rounded-2xl outline-none text-xs font-bold text-white focus:border-blue-500 shadow-inner placeholder:text-slate-700"
+              className={inputClass}
             />
           </div>
 
+          {/* Gönder */}
           <div className="lg:col-span-2">
-            <button 
+            <button
               type="submit"
               disabled={!selectedLocation}
-              className={`w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-2xl flex items-center justify-center gap-3 active:scale-95 ${
-                selectedLocation 
-                  ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/40' 
-                  : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-white/5'
+              className={`w-full py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm ${
+                selectedLocation
+                  ? 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-200'
+                  : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-[#ddd8d0]'
               }`}
             >
-              <Send size={16} /> Gönder
+              <Send size={14} />
+              Gönder
             </button>
           </div>
         </form>
       </div>
 
-      <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between">
+      {/* Alt Footer */}
+      <div className="mt-6 pt-5 border-t border-[#ece8e2] flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <AlertTriangle size={14} className="text-yellow-600/80" />
-          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">
-            Tüm sinyaller güvenlik amacıyla <span className="text-blue-400 font-black">Admin Denetimi</span>'nden geçmektedir.
+          <AlertTriangle size={13} className="text-amber-400 shrink-0" />
+          <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-tight">
+            Tüm sinyaller güvenlik amacıyla{' '}
+            <span className="text-blue-500 font-black">Admin Denetimi</span>'nden geçmektedir.
           </p>
         </div>
-        <span className="text-[9px] font-mono text-blue-500/30 uppercase tracking-[0.3em]">
+        <span className="text-[9px] font-mono text-slate-300 uppercase tracking-[0.2em]">
           Karargah Bağlantısı: Stabil
         </span>
       </div>
